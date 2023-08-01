@@ -7,9 +7,9 @@ Gem::Specification.new do |s|
   s.date = %q{2023-08-01}
   s.description = %q{This is a gem to access the JotForm API.}
   s.email = %q{marcelo@paperco.de}
-  s.files = ["Rakefile", "lib/jotform.rb", "lib/jotform/translator.rb", "bin/jotform"]
+  s.files = ["Rakefile", "lib/jotform.rb", "bin/jotform"]
   s.test_files = ["test/test_jotform.rb"]
-  s.homepage = %q{http://rubygems.org/gems/jotform}
+  s.homepage = %q{http://rubygems.org/gems/jotform_api}
   s.require_paths = ["lib"]
   s.rubygems_version = %q{1.6.2}
   s.summary = %q{jotform!}

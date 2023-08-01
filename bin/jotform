@@ -1,3 +1,2 @@
 #!/usr/bin/env ruby
 
-puts Jotform.hi(ARGV[0])
