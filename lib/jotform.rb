@@ -124,15 +124,9 @@ class Jotform
   def createFormSubmissions(formID, submission)
       return _executePostRequest("form/"+ formID +"/submissions", submission);
   end
-
-  def self.hi(language)
-    translator = Translator.new(language)
-    translator.hi
-  end
 end
 
 require "net/http"
 require "uri"
 require "rubygems"
 require "json"
-require 'jotform/translator'
