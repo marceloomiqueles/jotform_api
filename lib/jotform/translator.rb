@@ -1,4 +1,4 @@
-class Hola::Translator
+class Jotform::Translator
   def initialize(language = "english")
     @language = language
   end
