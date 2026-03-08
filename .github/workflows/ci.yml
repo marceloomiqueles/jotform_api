@@ -4,8 +4,6 @@ on:
   push:
   pull_request:
   workflow_dispatch:
-  schedule:
-    - cron: '0 8 * * 1'
 
 jobs:
   unit-and-build:
@@ -35,7 +33,7 @@ jobs:
 
   legacy-compat:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
 
     steps:
       - name: Checkout
@@ -80,7 +78,7 @@ jobs:
 
   doc-contract:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
 
     steps:
       - name: Checkout
