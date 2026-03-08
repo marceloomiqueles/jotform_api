@@ -41,7 +41,7 @@ class Jotform
   end
 
   def getUsage
-    return _executeGetRequest("user/usage");
+    return _executeGetRequest("user/usage")
   end
 
   def getForms
@@ -93,11 +93,7 @@ class Jotform
   end
 
   def getFormSubmissions(formID)
-    return _executeGetRequest("form/"+ formID +"/submissions")
-  end
-
-  def getFormSubmissions(formID)
-    return _executeGetRequest("form/"+ formID +"/submissions")
+    return _executeGetRequest("form/" + formID + "/submissions")
   end
 
   def getFormFiles(formID)
@@ -121,11 +117,11 @@ class Jotform
   end
 
   def createFormWebhook(formID, webhookURL)
-    return _executePostRequest("form/"+formID+"/webhooks",{"webhookURL" => webhookURL} );
+    return _executePostRequest("form/"+formID+"/webhooks",{"webhookURL" => webhookURL} )
   end
 
   def createFormSubmissions(formID, submission)
-    return _executePostRequest("form/"+ formID +"/submissions", submission);
+    return _executePostRequest("form/" + formID + "/submissions", submission)
   end
 end
 

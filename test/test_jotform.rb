@@ -96,7 +96,11 @@ class JotformTest < Test::Unit::TestCase
     original_name = "__original_#{method_name}".to_sym
     return unless @net_http_singleton.method_defined?(original_name)
 
+    verbose = $VERBOSE
+    $VERBOSE = nil
     @net_http_singleton.send(:alias_method, method_name, original_name)
     @net_http_singleton.send(:remove_method, original_name)
+  ensure
+    $VERBOSE = verbose
   end
 end
