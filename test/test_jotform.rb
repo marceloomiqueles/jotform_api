@@ -43,6 +43,14 @@ class JotformTest < Test::Unit::TestCase
     assert_equal({ "username" => "marcelo" }, result)
   end
 
+  def test_initialize_sets_default_values
+    jotform = Jotform.new
+
+    assert_nil(jotform.apiKey)
+    assert_equal("http://api.jotform.com", jotform.baseURL)
+    assert_equal("v1", jotform.apiVersion)
+  end
+
   def test_get_forms_calls_expected_endpoint_and_returns_content
     captured_uri = nil
 
@@ -104,6 +112,45 @@ class JotformTest < Test::Unit::TestCase
     assert_equal("http://example.com/v9/form/123/submissions?apiKey=test-api-key", captured_uri.to_s)
     assert_equal(submission_payload, captured_params)
     assert_equal({ "submissionID" => "sub_1" }, result)
+  end
+
+  def test_get_endpoint_wrappers_call_expected_paths
+    cases = [
+      [:getUsage, [], "user/usage"],
+      [:getSubmissions, [], "user/submissions"],
+      [:getSubusers, [], "user/subusers"],
+      [:getFolders, [], "user/folders"],
+      [:getReports, [], "user/reports"],
+      [:getSettings, [], "user/settings"],
+      [:getHistory, [], "user/history"],
+      [:getForm, ["123"], "form/123"],
+      [:getFormQuestions, ["123"], "form/123/questions"],
+      [:getFormQuestion, ["123", "7"], "form/123/question/7"],
+      [:getFormProperties, ["123"], "form/123/properties"],
+      [:getFormProperty, ["123", "title"], "form/123/properties/title"],
+      [:getFormSubmissions, ["123"], "form/123/submissions"],
+      [:getFormFiles, ["123"], "form/123/files"],
+      [:getFormWebhooks, ["123"], "form/123/webhooks"],
+      [:getReport, ["r1"], "report/r1"],
+      [:getFolder, ["fld1"], "folder/fld1"]
+    ]
+
+    cases.each do |method_name, args, path|
+      captured_uri = nil
+      expected_content = { "endpoint" => path }
+
+      stub_net_http_method(:get_response) do |uri|
+        captured_uri = uri
+        FakeSuccessResponse.new({ "content" => expected_content }.to_json)
+      end
+
+      result = @jotform.send(method_name, *args)
+
+      assert_equal("http://example.com/v9/#{path}?apiKey=test-api-key", captured_uri.to_s)
+      assert_equal(expected_content, result)
+
+      restore_net_http_method(:get_response)
+    end
   end
 
   def test_error_response_returns_nil_and_prints_api_message
