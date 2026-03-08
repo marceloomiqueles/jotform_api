@@ -1,16 +1,15 @@
-jotform-api-ruby
+Jotform Ruby Client
 ===============
 [![Gem Version](https://badge.fury.io/rb/jotform_api.svg?icon=si%3Arubygems)](https://badge.fury.io/rb/jotform_api.svg?icon=si%3Arubygems)
 
 [Jotform API](https://api.jotform.com/docs/) - Ruby Client
 
-
 ### Installation
 
 Install via git clone:
 
-        $ git clone git://github.com/jotform/jotform-api-ruby.git
-        $ cd jotform-api-ruby
+        $ git clone git://github.com/marceloomiqueles/jotform_api.git
+        $ cd jotform_api
 
 ### Documentation
 
