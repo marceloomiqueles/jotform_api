@@ -432,6 +432,33 @@ class JotformTest < Test::Unit::TestCase
     assert_equal("/v9/report/rep_1?apiKey=test-api-key", captured[:request].path)
   end
 
+  def test_put_and_delete_use_ssl_when_base_url_is_https
+    jotform_https = Jotform.new("test-api-key", "https://api.jotform.com", "v1")
+    captured = {}
+
+    stub_net_http_method(:new) do |_host, _port|
+      http = Object.new
+      http.define_singleton_method(:use_ssl=) do |value|
+        captured[:use_ssl] = value
+      end
+      http.define_singleton_method(:request) do |request|
+        captured[:request] = request
+        FakeSuccessResponse.new({ "content" => { "ok" => true } }.to_json)
+      end
+      http
+    end
+
+    put_result = jotform_https.updateLabel("label_1", { "name" => "Secure" })
+    assert_equal(true, captured[:use_ssl])
+    assert_kind_of(Net::HTTP::Put, captured[:request])
+    assert_equal({ "ok" => true }, put_result)
+
+    delete_result = jotform_https.deleteLabel("label_1")
+    assert_equal(true, captured[:use_ssl])
+    assert_kind_of(Net::HTTP::Delete, captured[:request])
+    assert_equal({ "ok" => true }, delete_result)
+  end
+
   def test_get_endpoint_wrappers_call_expected_paths
     cases = [
       [:getUsage, [], "user/usage"],
