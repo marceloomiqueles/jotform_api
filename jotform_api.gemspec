@@ -1,8 +1,8 @@
 Gem::Specification.new do |s|
   s.name               = "jotform_api"
-  s.version            = "1.1.0"
+  s.version            = "1.1.1"
 
-  s.required_ruby_version = ">= 2.6"
+  s.required_ruby_version = ">= 3.1"
   s.authors = ["Marcelo Miqueles"]
   s.date = %q{2023-08-01}
   s.description = %q{Unofficial JotForm gem to access the JotForm API.}

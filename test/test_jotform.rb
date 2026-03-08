@@ -19,6 +19,38 @@ class JotformTest < Test::Unit::TestCase
     end
   end
 
+  class FakeUnauthorizedResponse < Net::HTTPUnauthorized
+    attr_reader :body
+
+    def initialize(body)
+      @body = body
+    end
+  end
+
+  class FakeForbiddenResponse < Net::HTTPForbidden
+    attr_reader :body
+
+    def initialize(body)
+      @body = body
+    end
+  end
+
+  class FakeNotFoundResponse < Net::HTTPNotFound
+    attr_reader :body
+
+    def initialize(body)
+      @body = body
+    end
+  end
+
+  class FakeTooManyRequestsResponse < Net::HTTPTooManyRequests
+    attr_reader :body
+
+    def initialize(body)
+      @body = body
+    end
+  end
+
   def setup
     @jotform = Jotform.new("test-api-key", "http://example.com", "v9")
     @net_http_singleton = class << Net::HTTP; self; end
@@ -64,6 +96,72 @@ class JotformTest < Test::Unit::TestCase
 
     assert_equal("http://example.com/v9/user/forms?apiKey=test-api-key", captured_uri.to_s)
     assert_equal([{ "id" => "f1" }], result)
+  end
+
+  def test_get_endpoints_support_query_params
+    captured_uri = nil
+
+    stub_net_http_method(:get_response) do |uri|
+      captured_uri = uri
+      FakeSuccessResponse.new({ "content" => { "ok" => true } }.to_json)
+    end
+
+    @jotform.getForms(5, 20, { "id:gt" => "100" }, "created_at")
+    assert_equal("/v9/user/forms", captured_uri.path)
+    query = URI.decode_www_form(captured_uri.query).to_h
+    assert_equal("test-api-key", query["apiKey"])
+    assert_equal("5", query["offset"])
+    assert_equal("20", query["limit"])
+    assert_equal('{"id:gt":"100"}', query["filter"])
+    assert_equal("created_at", query["orderby"])
+
+    @jotform.getHistory("FORM_CREATE", "MONTH", "DESC", "01/01/2026", "01/31/2026")
+    assert_equal("/v9/user/history", captured_uri.path)
+    query = URI.decode_www_form(captured_uri.query).to_h
+    assert_equal("FORM_CREATE", query["action"])
+    assert_equal("MONTH", query["date"])
+    assert_equal("DESC", query["sortBy"])
+    assert_equal("01/01/2026", query["startDate"])
+    assert_equal("01/31/2026", query["endDate"])
+
+    @jotform.getFormSubmissions("123", 10, 50, { "status:eq" => "ACTIVE" }, "created_at")
+    assert_equal("/v9/form/123/submissions", captured_uri.path)
+    query = URI.decode_www_form(captured_uri.query).to_h
+    assert_equal("10", query["offset"])
+    assert_equal("50", query["limit"])
+    assert_equal('{"status:eq":"ACTIVE"}', query["filter"])
+    assert_equal("created_at", query["orderby"])
+  end
+
+  def test_query_params_handle_special_characters_and_complex_filters
+    captured_uri = nil
+
+    stub_net_http_method(:get_response) do |uri|
+      captured_uri = uri
+      FakeSuccessResponse.new({ "content" => { "ok" => true } }.to_json)
+    end
+
+    @jotform.getForms(
+      1,
+      25,
+      { "status:eq" => "ACTIVE", "title:contains" => "Sales & Marketing" },
+      "created_at desc"
+    )
+
+    assert_equal("/v9/user/forms", captured_uri.path)
+    query = URI.decode_www_form(captured_uri.query).to_h
+    assert_equal("test-api-key", query["apiKey"])
+    assert_equal("1", query["offset"])
+    assert_equal("25", query["limit"])
+    assert_equal('{"status:eq":"ACTIVE","title:contains":"Sales & Marketing"}', query["filter"])
+    assert_equal("created_at desc", query["orderby"])
+
+    @jotform.getHistory(nil, nil, "ASC", "03/01/2026 10:30", "03/08/2026 18:45")
+    assert_equal("/v9/user/history", captured_uri.path)
+    query = URI.decode_www_form(captured_uri.query).to_h
+    assert_equal("ASC", query["sortBy"])
+    assert_equal("03/01/2026 10:30", query["startDate"])
+    assert_equal("03/08/2026 18:45", query["endDate"])
   end
 
   def test_get_submission_calls_expected_endpoint_and_returns_content
@@ -334,6 +432,33 @@ class JotformTest < Test::Unit::TestCase
     assert_equal("/v9/report/rep_1?apiKey=test-api-key", captured[:request].path)
   end
 
+  def test_put_and_delete_use_ssl_when_base_url_is_https
+    jotform_https = Jotform.new("test-api-key", "https://api.jotform.com", "v1")
+    captured = {}
+
+    stub_net_http_method(:new) do |_host, _port|
+      http = Object.new
+      http.define_singleton_method(:use_ssl=) do |value|
+        captured[:use_ssl] = value
+      end
+      http.define_singleton_method(:request) do |request|
+        captured[:request] = request
+        FakeSuccessResponse.new({ "content" => { "ok" => true } }.to_json)
+      end
+      http
+    end
+
+    put_result = jotform_https.updateLabel("label_1", { "name" => "Secure" })
+    assert_equal(true, captured[:use_ssl])
+    assert_kind_of(Net::HTTP::Put, captured[:request])
+    assert_equal({ "ok" => true }, put_result)
+
+    delete_result = jotform_https.deleteLabel("label_1")
+    assert_equal(true, captured[:use_ssl])
+    assert_kind_of(Net::HTTP::Delete, captured[:request])
+    assert_equal({ "ok" => true }, delete_result)
+  end
+
   def test_get_endpoint_wrappers_call_expected_paths
     cases = [
       [:getUsage, [], "user/usage"],
@@ -396,6 +521,137 @@ class JotformTest < Test::Unit::TestCase
     assert_match(/Invalid API key/, output.string)
   ensure
     $stdout = original_stdout
+  end
+
+  def test_error_response_with_missing_message_prints_fallback
+    stub_net_http_method(:get_response) do |_uri|
+      FakeErrorResponse.new({ "code" => 500 }.to_json)
+    end
+
+    original_stdout = $stdout
+    output = StringIO.new
+    $stdout = output
+
+    result = @jotform.getUser
+
+    assert_nil(result)
+    assert_match(/Unknown API error/, output.string)
+  ensure
+    $stdout = original_stdout
+  end
+
+  def test_unauthorized_response_returns_nil_and_prints_message
+    stub_net_http_method(:get_response) do |_uri|
+      FakeUnauthorizedResponse.new({ "message" => "Unauthorized" }.to_json)
+    end
+
+    original_stdout = $stdout
+    output = StringIO.new
+    $stdout = output
+
+    result = @jotform.getUser
+
+    assert_nil(result)
+    assert_match(/Unauthorized/, output.string)
+  ensure
+    $stdout = original_stdout
+  end
+
+  def test_success_response_with_malformed_json_returns_nil
+    stub_net_http_method(:get_response) do |_uri|
+      FakeSuccessResponse.new("not-json")
+    end
+
+    result = @jotform.getUser
+
+    assert_nil(result)
+  end
+
+  def test_error_response_with_malformed_json_returns_nil_and_prints_unexpected_format
+    stub_net_http_method(:get_response) do |_uri|
+      FakeErrorResponse.new("not-json")
+    end
+
+    original_stdout = $stdout
+    output = StringIO.new
+    $stdout = output
+
+    result = @jotform.getUser
+
+    assert_nil(result)
+    assert_match(/Unexpected response format/, output.string)
+  ensure
+    $stdout = original_stdout
+  end
+
+  def test_error_response_forbidden_returns_nil_and_prints_message
+    stub_net_http_method(:get_response) do |_uri|
+      FakeForbiddenResponse.new({ "message" => "Forbidden" }.to_json)
+    end
+
+    original_stdout = $stdout
+    output = StringIO.new
+    $stdout = output
+
+    result = @jotform.getUser
+
+    assert_nil(result)
+    assert_match(/Forbidden/, output.string)
+  ensure
+    $stdout = original_stdout
+  end
+
+  def test_error_response_not_found_returns_nil_and_prints_message
+    stub_net_http_method(:get_response) do |_uri|
+      FakeNotFoundResponse.new({ "message" => "Not Found" }.to_json)
+    end
+
+    original_stdout = $stdout
+    output = StringIO.new
+    $stdout = output
+
+    result = @jotform.getForm("does-not-exist")
+
+    assert_nil(result)
+    assert_match(/Not Found/, output.string)
+  ensure
+    $stdout = original_stdout
+  end
+
+  def test_error_response_too_many_requests_returns_nil_and_prints_message
+    stub_net_http_method(:get_response) do |_uri|
+      FakeTooManyRequestsResponse.new({ "message" => "Rate limit exceeded" }.to_json)
+    end
+
+    original_stdout = $stdout
+    output = StringIO.new
+    $stdout = output
+
+    result = @jotform.getForms
+
+    assert_nil(result)
+    assert_match(/Rate limit exceeded/, output.string)
+  ensure
+    $stdout = original_stdout
+  end
+
+  def test_public_api_contract_includes_expected_methods
+    expected_methods = %w[
+      getUser getUsage getForms getSubmissions getSubusers getFolders getReports getSettings
+      getUserSetting updateSettings getHistory getLabels getInvoices getForm getFormQuestions
+      getFormQuestion getFormProperties getFormProperty getFormSubmissions getFormFiles
+      getFormWebhooks getFormReports getSubmission getReport getFolder getSystemPlan getLabel
+      getLabelResources createFormWebhook deleteFormWebhook createFormSubmissions createFormSubmission
+      editSubmission deleteSubmission createLabel updateLabel addResourcesToLabel removeResourcesFromLabel
+      deleteLabel createFolder updateFolder deleteFolder addFormsToFolder addFormToFolder cloneForm
+      createFormQuestion createFormQuestions editFormQuestion deleteFormQuestion setFormProperties
+      setMultipleFormProperties createForm createForms deleteForm registerUser loginUser logoutUser
+      createReport deleteReport
+    ]
+
+    expected_methods.each do |method_name|
+      assert_respond_to(@jotform, method_name.to_sym)
+    end
   end
 
   private

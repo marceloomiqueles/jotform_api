@@ -11,7 +11,13 @@ class Jotform
   end
 
   def _executeHTTPRequest(endpoint, parameters = nil, type = "GET")
-    url = [@baseURL, @apiVersion, endpoint].join("/").concat('?apiKey='+@apiKey)
+    query_params = { "apiKey" => @apiKey }
+    if type == "GET" && parameters.is_a?(Hash)
+      query_params = query_params.merge(parameters)
+    end
+
+    url = [@baseURL, @apiVersion, endpoint].join("/")
+    url = url.concat("?").concat(URI.encode_www_form(query_params))
     url = URI.parse(url)
 
     if type == "GET"
@@ -39,10 +45,18 @@ class Jotform
       response = http.request(request)
     end
 
+    parsed_body = _parse_response_body(response.body)
+
     if response.kind_of? Net::HTTPSuccess
-      return JSON.parse(response.body)["content"]
+      return parsed_body["content"] if parsed_body.is_a?(Hash)
+      return nil
     else
-      puts JSON.parse(response.body)["message"]
+      error_message = if parsed_body.is_a?(Hash)
+                        parsed_body["message"]
+                      else
+                        "Unexpected response format"
+                      end
+      puts(error_message || "Unknown API error")
       return nil
     end
   end
@@ -71,12 +85,12 @@ class Jotform
     return _executeGetRequest("user/usage")
   end
 
-  def getForms
-    return _executeGetRequest("user/forms")
+  def getForms(offset = 0, limit = 0, filter = nil, orderby = nil)
+    return _executeGetRequest("user/forms", _create_conditions(offset, limit, filter, orderby))
   end
 
-  def getSubmissions
-    return _executeGetRequest("user/submissions")
+  def getSubmissions(offset = 0, limit = 0, filter = nil, orderby = nil)
+    return _executeGetRequest("user/submissions", _create_conditions(offset, limit, filter, orderby))
   end
 
   def getSubusers
@@ -103,8 +117,8 @@ class Jotform
     return _executePostRequest("user/settings", settings)
   end
 
-  def getHistory
-    return _executeGetRequest("user/history")
+  def getHistory(action = nil, date = nil, sortBy = nil, startDate = nil, endDate = nil)
+    return _executeGetRequest("user/history", _create_history_query(action, date, sortBy, startDate, endDate))
   end
 
   def getLabels
@@ -135,8 +149,8 @@ class Jotform
     return _executeGetRequest("form/"+formID+"/properties/"+propertyKey)
   end
 
-  def getFormSubmissions(formID)
-    return _executeGetRequest("form/" + formID + "/submissions")
+  def getFormSubmissions(formID, offset = 0, limit = 0, filter = nil, orderby = nil)
+    return _executeGetRequest("form/" + formID + "/submissions", _create_conditions(offset, limit, filter, orderby))
   end
 
   def getFormFiles(formID)
@@ -347,6 +361,31 @@ class Jotform
 
   def deleteReport(reportID)
     return _executeDeleteRequest("report/" + reportID)
+  end
+
+  def _parse_response_body(body)
+    JSON.parse(body)
+  rescue JSON::ParserError
+    nil
+  end
+
+  def _create_conditions(offset = 0, limit = 0, filter = nil, orderby = nil)
+    conditions = {}
+    conditions["offset"] = offset if offset && offset.to_i > 0
+    conditions["limit"] = limit if limit && limit.to_i > 0
+    conditions["filter"] = JSON.generate(filter) if filter
+    conditions["orderby"] = orderby if orderby
+    conditions
+  end
+
+  def _create_history_query(action = nil, date = nil, sortBy = nil, startDate = nil, endDate = nil)
+    history_query = {}
+    history_query["action"] = action if action
+    history_query["date"] = date if date
+    history_query["sortBy"] = sortBy if sortBy
+    history_query["startDate"] = startDate if startDate
+    history_query["endDate"] = endDate if endDate
+    history_query
   end
 end
 
