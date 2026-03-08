@@ -54,3 +54,7 @@ end
     
 First the _JotForm_ class is included from the _jotform-api-ruby/JotForm.rb_ file. This class provides access to JotForm's API. You have to create an API client instance with your API key. 
 In case of an exception (wrong authentication etc.), you can catch it or let it fail with a fatal error.
+
+### License
+
+This project is licensed under the Apache License 2.0. See `LICENSE.txt` for details.
