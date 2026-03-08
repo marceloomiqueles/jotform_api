@@ -27,6 +27,7 @@ class JotformTest < Test::Unit::TestCase
   def teardown
     restore_net_http_method(:get_response)
     restore_net_http_method(:post_form)
+    restore_net_http_method(:new)
   end
 
   def test_get_user_calls_expected_endpoint_and_returns_content
@@ -114,15 +115,89 @@ class JotformTest < Test::Unit::TestCase
     assert_equal({ "submissionID" => "sub_1" }, result)
   end
 
+  def test_create_label_posts_payload_and_returns_content
+    captured_uri = nil
+    captured_params = nil
+    payload = { "name" => "IT Operations", "color" => "#FFDC7B" }
+
+    stub_net_http_method(:post_form) do |uri, params|
+      captured_uri = uri
+      captured_params = params
+      FakeSuccessResponse.new({ "content" => { "id" => "lbl_1" } }.to_json)
+    end
+
+    result = @jotform.createLabel(payload)
+
+    assert_equal("http://example.com/v9/label?apiKey=test-api-key", captured_uri.to_s)
+    assert_equal(payload, captured_params)
+    assert_equal({ "id" => "lbl_1" }, result)
+  end
+
+  def test_put_and_delete_label_requests_use_expected_paths_and_payloads
+    captured = {}
+
+    stub_net_http_method(:new) do |host, port|
+      captured[:host] = host
+      captured[:port] = port
+
+      http = Object.new
+      http.define_singleton_method(:use_ssl=) do |value|
+        captured[:use_ssl] = value
+      end
+      http.define_singleton_method(:request) do |request|
+        captured[:request] = request
+        FakeSuccessResponse.new({ "content" => { "ok" => true } }.to_json)
+      end
+      http
+    end
+
+    update_payload = { "name" => "Workplace Operations", "color" => "#23FFDD" }
+    update_result = @jotform.updateLabel("label_1", update_payload)
+
+    assert_equal("example.com", captured[:host])
+    assert_equal(80, captured[:port])
+    assert_equal(false, captured[:use_ssl])
+    assert_kind_of(Net::HTTP::Put, captured[:request])
+    assert_equal("/v9/label/label_1?apiKey=test-api-key", captured[:request].path)
+    assert_equal(update_payload.to_json, captured[:request].body)
+    assert_equal("application/json", captured[:request]["Content-Type"])
+    assert_equal({ "ok" => true }, update_result)
+
+    resources = [{ "id" => "251464995493876", "type" => "form" }]
+    add_result = @jotform.addResourcesToLabel("label_1", resources)
+    assert_equal("/v9/label/label_1/add-resources?apiKey=test-api-key", captured[:request].path)
+    assert_equal({ "resources" => resources }.to_json, captured[:request].body)
+    assert_equal({ "ok" => true }, add_result)
+
+    remove_result = @jotform.removeResourcesFromLabel("label_1", resources)
+    assert_equal("/v9/label/label_1/remove-resources?apiKey=test-api-key", captured[:request].path)
+    assert_equal({ "resources" => resources }.to_json, captured[:request].body)
+    assert_equal({ "ok" => true }, remove_result)
+
+    raw_payload = '{"name":"Raw Label"}'
+    raw_result = @jotform.updateLabel("label_1", raw_payload)
+    assert_equal("/v9/label/label_1?apiKey=test-api-key", captured[:request].path)
+    assert_equal(raw_payload, captured[:request].body)
+    assert_equal("application/json", captured[:request]["Content-Type"])
+    assert_equal({ "ok" => true }, raw_result)
+
+    delete_result = @jotform.deleteLabel("label_1")
+    assert_kind_of(Net::HTTP::Delete, captured[:request])
+    assert_equal("/v9/label/label_1?apiKey=test-api-key", captured[:request].path)
+    assert_equal({ "ok" => true }, delete_result)
+  end
+
   def test_get_endpoint_wrappers_call_expected_paths
     cases = [
       [:getUsage, [], "user/usage"],
+      [:getLabels, [], "user/labels"],
       [:getSubmissions, [], "user/submissions"],
       [:getSubusers, [], "user/subusers"],
       [:getFolders, [], "user/folders"],
       [:getReports, [], "user/reports"],
       [:getSettings, [], "user/settings"],
       [:getHistory, [], "user/history"],
+      [:getSystemPlan, ["FREE"], "system/plan/FREE"],
       [:getForm, ["123"], "form/123"],
       [:getFormQuestions, ["123"], "form/123/questions"],
       [:getFormQuestion, ["123", "7"], "form/123/question/7"],
@@ -132,7 +207,9 @@ class JotformTest < Test::Unit::TestCase
       [:getFormFiles, ["123"], "form/123/files"],
       [:getFormWebhooks, ["123"], "form/123/webhooks"],
       [:getReport, ["r1"], "report/r1"],
-      [:getFolder, ["fld1"], "folder/fld1"]
+      [:getFolder, ["fld1"], "folder/fld1"],
+      [:getLabel, ["lbl1"], "label/lbl1"],
+      [:getLabelResources, ["lbl1"], "label/lbl1/resources"]
     ]
 
     cases.each do |method_name, args, path|
