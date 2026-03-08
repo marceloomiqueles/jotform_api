@@ -27,6 +27,30 @@ class JotformTest < Test::Unit::TestCase
     end
   end
 
+  class FakeForbiddenResponse < Net::HTTPForbidden
+    attr_reader :body
+
+    def initialize(body)
+      @body = body
+    end
+  end
+
+  class FakeNotFoundResponse < Net::HTTPNotFound
+    attr_reader :body
+
+    def initialize(body)
+      @body = body
+    end
+  end
+
+  class FakeTooManyRequestsResponse < Net::HTTPTooManyRequests
+    attr_reader :body
+
+    def initialize(body)
+      @body = body
+    end
+  end
+
   def setup
     @jotform = Jotform.new("test-api-key", "http://example.com", "v9")
     @net_http_singleton = class << Net::HTTP; self; end
@@ -107,6 +131,37 @@ class JotformTest < Test::Unit::TestCase
     assert_equal("50", query["limit"])
     assert_equal('{"status:eq":"ACTIVE"}', query["filter"])
     assert_equal("created_at", query["orderby"])
+  end
+
+  def test_query_params_handle_special_characters_and_complex_filters
+    captured_uri = nil
+
+    stub_net_http_method(:get_response) do |uri|
+      captured_uri = uri
+      FakeSuccessResponse.new({ "content" => { "ok" => true } }.to_json)
+    end
+
+    @jotform.getForms(
+      1,
+      25,
+      { "status:eq" => "ACTIVE", "title:contains" => "Sales & Marketing" },
+      "created_at desc"
+    )
+
+    assert_equal("/v9/user/forms", captured_uri.path)
+    query = URI.decode_www_form(captured_uri.query).to_h
+    assert_equal("test-api-key", query["apiKey"])
+    assert_equal("1", query["offset"])
+    assert_equal("25", query["limit"])
+    assert_equal('{"status:eq":"ACTIVE","title:contains":"Sales & Marketing"}', query["filter"])
+    assert_equal("created_at desc", query["orderby"])
+
+    @jotform.getHistory(nil, nil, "ASC", "03/01/2026 10:30", "03/08/2026 18:45")
+    assert_equal("/v9/user/history", captured_uri.path)
+    query = URI.decode_www_form(captured_uri.query).to_h
+    assert_equal("ASC", query["sortBy"])
+    assert_equal("03/01/2026 10:30", query["startDate"])
+    assert_equal("03/08/2026 18:45", query["endDate"])
   end
 
   def test_get_submission_calls_expected_endpoint_and_returns_content
@@ -498,6 +553,57 @@ class JotformTest < Test::Unit::TestCase
 
     assert_nil(result)
     assert_match(/Unexpected response format/, output.string)
+  ensure
+    $stdout = original_stdout
+  end
+
+  def test_error_response_forbidden_returns_nil_and_prints_message
+    stub_net_http_method(:get_response) do |_uri|
+      FakeForbiddenResponse.new({ "message" => "Forbidden" }.to_json)
+    end
+
+    original_stdout = $stdout
+    output = StringIO.new
+    $stdout = output
+
+    result = @jotform.getUser
+
+    assert_nil(result)
+    assert_match(/Forbidden/, output.string)
+  ensure
+    $stdout = original_stdout
+  end
+
+  def test_error_response_not_found_returns_nil_and_prints_message
+    stub_net_http_method(:get_response) do |_uri|
+      FakeNotFoundResponse.new({ "message" => "Not Found" }.to_json)
+    end
+
+    original_stdout = $stdout
+    output = StringIO.new
+    $stdout = output
+
+    result = @jotform.getForm("does-not-exist")
+
+    assert_nil(result)
+    assert_match(/Not Found/, output.string)
+  ensure
+    $stdout = original_stdout
+  end
+
+  def test_error_response_too_many_requests_returns_nil_and_prints_message
+    stub_net_http_method(:get_response) do |_uri|
+      FakeTooManyRequestsResponse.new({ "message" => "Rate limit exceeded" }.to_json)
+    end
+
+    original_stdout = $stdout
+    output = StringIO.new
+    $stdout = output
+
+    result = @jotform.getForms
+
+    assert_nil(result)
+    assert_match(/Rate limit exceeded/, output.string)
   ensure
     $stdout = original_stdout
   end
