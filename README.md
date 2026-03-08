@@ -85,6 +85,12 @@ JOTFORM_API_KEY=your_api_key ruby -Ilib:test test/test_jotform_integration.rb
 
 `JOTFORM_BASE_URL` can be set for region-specific API hosts. Default is `https://api.jotform.com`.
 
+Run optional docs contract test (checks live docs endpoint list against client contract):
+
+```bash
+RUN_DOC_CONTRACT=1 ruby -Ilib:test test/test_jotform_doc_contract.rb
+```
+
 ### License
 
 This project is licensed under the Apache License 2.0. See `LICENSE.txt` for details.
