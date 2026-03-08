@@ -74,6 +74,41 @@ class JotformTest < Test::Unit::TestCase
     assert_equal([{ "id" => "f1" }], result)
   end
 
+  def test_get_endpoints_support_query_params
+    captured_uri = nil
+
+    stub_net_http_method(:get_response) do |uri|
+      captured_uri = uri
+      FakeSuccessResponse.new({ "content" => { "ok" => true } }.to_json)
+    end
+
+    @jotform.getForms(5, 20, { "id:gt" => "100" }, "created_at")
+    assert_equal("/v9/user/forms", captured_uri.path)
+    query = URI.decode_www_form(captured_uri.query).to_h
+    assert_equal("test-api-key", query["apiKey"])
+    assert_equal("5", query["offset"])
+    assert_equal("20", query["limit"])
+    assert_equal('{"id:gt":"100"}', query["filter"])
+    assert_equal("created_at", query["orderby"])
+
+    @jotform.getHistory("FORM_CREATE", "MONTH", "DESC", "01/01/2026", "01/31/2026")
+    assert_equal("/v9/user/history", captured_uri.path)
+    query = URI.decode_www_form(captured_uri.query).to_h
+    assert_equal("FORM_CREATE", query["action"])
+    assert_equal("MONTH", query["date"])
+    assert_equal("DESC", query["sortBy"])
+    assert_equal("01/01/2026", query["startDate"])
+    assert_equal("01/31/2026", query["endDate"])
+
+    @jotform.getFormSubmissions("123", 10, 50, { "status:eq" => "ACTIVE" }, "created_at")
+    assert_equal("/v9/form/123/submissions", captured_uri.path)
+    query = URI.decode_www_form(captured_uri.query).to_h
+    assert_equal("10", query["offset"])
+    assert_equal("50", query["limit"])
+    assert_equal('{"status:eq":"ACTIVE"}', query["filter"])
+    assert_equal("created_at", query["orderby"])
+  end
+
   def test_get_submission_calls_expected_endpoint_and_returns_content
     captured_uri = nil
 
@@ -465,6 +500,25 @@ class JotformTest < Test::Unit::TestCase
     assert_match(/Unexpected response format/, output.string)
   ensure
     $stdout = original_stdout
+  end
+
+  def test_public_api_contract_includes_expected_methods
+    expected_methods = %w[
+      getUser getUsage getForms getSubmissions getSubusers getFolders getReports getSettings
+      getUserSetting updateSettings getHistory getLabels getInvoices getForm getFormQuestions
+      getFormQuestion getFormProperties getFormProperty getFormSubmissions getFormFiles
+      getFormWebhooks getFormReports getSubmission getReport getFolder getSystemPlan getLabel
+      getLabelResources createFormWebhook deleteFormWebhook createFormSubmissions createFormSubmission
+      editSubmission deleteSubmission createLabel updateLabel addResourcesToLabel removeResourcesFromLabel
+      deleteLabel createFolder updateFolder deleteFolder addFormsToFolder addFormToFolder cloneForm
+      createFormQuestion createFormQuestions editFormQuestion deleteFormQuestion setFormProperties
+      setMultipleFormProperties createForm createForms deleteForm registerUser loginUser logoutUser
+      createReport deleteReport
+    ]
+
+    expected_methods.each do |method_name|
+      assert_respond_to(@jotform, method_name.to_sym)
+    end
   end
 
   private
