@@ -1,6 +1,6 @@
-jotform-api-ruby 
+jotform-api-ruby
 ===============
-[JotForm API](http://api.jotform.com/docs/) - Ruby Client
+[Jotform API](https://api.jotform.com/docs/) - Ruby Client
 
 
 ### Installation
@@ -12,7 +12,7 @@ Install via git clone:
 
 ### Documentation
 
-You can find the docs for the API of this client at [http://api.jotform.com/docs/](http://api.jotform.com/docs)
+You can find the docs for the API at [https://api.jotform.com/docs/](https://api.jotform.com/docs/).
 
 ### Authentication
 
@@ -52,5 +52,23 @@ end
 ```    
 
     
-First the _JotForm_ class is included from the _jotform-api-ruby/JotForm.rb_ file. This class provides access to JotForm's API. You have to create an API client instance with your API key. 
+First the _Jotform_ class is included from _lib/jotform.rb_. This class provides access to Jotform's API. You have to create an API client instance with your API key.
 In case of an exception (wrong authentication etc.), you can catch it or let it fail with a fatal error.
+
+### Supported Endpoints
+
+As of **March 8, 2026**, this client is aligned with the public endpoint groups listed in `https://api.jotform.com/docs/`:
+
+- `/user` (including usage, forms, submissions, subusers, folders, reports, settings, settings key, labels, invoices, register, login, logout)
+- `/form` (including questions, properties, submissions, files, webhooks, webhooks delete, clone, reports)
+- `/submission` (get, edit, delete)
+- `/report` (get, delete)
+- `/folder` (get, create, update, delete)
+- `/label` (get, create, update, delete, resources, add/remove resources)
+- `/system` (`/system/plan/{planName}`)
+
+Note: API docs may change over time. When Jotform adds new endpoints, this client may require updates to stay in sync.
+
+### License
+
+This project is licensed under the Apache License 2.0. See `LICENSE.txt` for details.
