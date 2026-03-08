@@ -1,5 +1,7 @@
 jotform-api-ruby
 ===============
+[![Gem Version](https://badge.fury.io/rb/jotform_api.svg?icon=si%3Arubygems)](https://badge.fury.io/rb/jotform_api.svg?icon=si%3Arubygems)
+
 [Jotform API](https://api.jotform.com/docs/) - Ruby Client
 
 
@@ -21,7 +23,7 @@ JotForm API requires API key for all user related calls. You can create your API
 ### Examples
 
 Print all forms of the user
-    
+
 ```ruby
 #!/usr/bin/env ruby
 require_relative 'JotForm'
@@ -32,10 +34,10 @@ forms = jotform.getForms()
 forms.each do |form|
     puts form["title"]
 end
-```    
+```
 
 Get latest submissions of the user
-    
+
 ```ruby
 #!/usr/bin/env ruby
 require_relative 'JotForm'
@@ -44,14 +46,14 @@ jotform = JotForm.new("APIKey")
 submissions = jotform.getSubmissions()
 
 submissions.each do |submission|
-    puts submission["created_at"] + " " 
+    puts submission["created_at"] + " "
     submission["answers"].each do | answer|
         puts "\t" + answer.join(" ")
     end
 end
-```    
+```
 
-    
+
 First the _Jotform_ class is included from _lib/jotform.rb_. This class provides access to Jotform's API. You have to create an API client instance with your API key.
 In case of an exception (wrong authentication etc.), you can catch it or let it fail with a fatal error.
 
