@@ -14,7 +14,7 @@ Gem::Specification.new do |s|
   s.rubygems_version = %q{1.6.2}
   s.summary = %q{jotform!}
 
-  s.license = "MIT"
+  s.license = "Apache-2.0"
 
   if s.respond_to? :specification_version then
     s.specification_version = 3
@@ -25,4 +25,3 @@ Gem::Specification.new do |s|
   else
   end
 end
-
