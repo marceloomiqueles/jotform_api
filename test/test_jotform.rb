@@ -43,6 +43,34 @@ class JotformTest < Test::Unit::TestCase
     assert_equal({ "username" => "marcelo" }, result)
   end
 
+  def test_get_forms_calls_expected_endpoint_and_returns_content
+    captured_uri = nil
+
+    stub_net_http_method(:get_response) do |uri|
+      captured_uri = uri
+      FakeSuccessResponse.new({ "content" => [{ "id" => "f1" }] }.to_json)
+    end
+
+    result = @jotform.getForms
+
+    assert_equal("http://example.com/v9/user/forms?apiKey=test-api-key", captured_uri.to_s)
+    assert_equal([{ "id" => "f1" }], result)
+  end
+
+  def test_get_submission_calls_expected_endpoint_and_returns_content
+    captured_uri = nil
+
+    stub_net_http_method(:get_response) do |uri|
+      captured_uri = uri
+      FakeSuccessResponse.new({ "content" => { "id" => "s1" } }.to_json)
+    end
+
+    result = @jotform.getSubmission("s1")
+
+    assert_equal("http://example.com/v9/submission/s1?apiKey=test-api-key", captured_uri.to_s)
+    assert_equal({ "id" => "s1" }, result)
+  end
+
   def test_create_form_webhook_posts_payload_and_returns_content
     captured_uri = nil
     captured_params = nil
@@ -58,6 +86,24 @@ class JotformTest < Test::Unit::TestCase
     assert_equal("http://example.com/v9/form/123/webhooks?apiKey=test-api-key", captured_uri.to_s)
     assert_equal({ "webhookURL" => "https://callback.test/hook" }, captured_params)
     assert_equal({ "id" => "wh_1" }, result)
+  end
+
+  def test_create_form_submissions_posts_payload_and_returns_content
+    captured_uri = nil
+    captured_params = nil
+    submission_payload = { "submission[3]" => "Marcelo" }
+
+    stub_net_http_method(:post_form) do |uri, params|
+      captured_uri = uri
+      captured_params = params
+      FakeSuccessResponse.new({ "content" => { "submissionID" => "sub_1" } }.to_json)
+    end
+
+    result = @jotform.createFormSubmissions("123", submission_payload)
+
+    assert_equal("http://example.com/v9/form/123/submissions?apiKey=test-api-key", captured_uri.to_s)
+    assert_equal(submission_payload, captured_params)
+    assert_equal({ "submissionID" => "sub_1" }, result)
   end
 
   def test_error_response_returns_nil_and_prints_api_message
