@@ -71,6 +71,8 @@ Note: API docs may change over time. When Jotform adds new endpoints, this clien
 
 ### Testing
 
+Supported Ruby version: `>= 3.1`
+
 Run unit tests:
 
 ```bash
