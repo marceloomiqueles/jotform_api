@@ -19,6 +19,14 @@ class JotformTest < Test::Unit::TestCase
     end
   end
 
+  class FakeUnauthorizedResponse < Net::HTTPUnauthorized
+    attr_reader :body
+
+    def initialize(body)
+      @body = body
+    end
+  end
+
   def setup
     @jotform = Jotform.new("test-api-key", "http://example.com", "v9")
     @net_http_singleton = class << Net::HTTP; self; end
@@ -394,6 +402,67 @@ class JotformTest < Test::Unit::TestCase
 
     assert_nil(result)
     assert_match(/Invalid API key/, output.string)
+  ensure
+    $stdout = original_stdout
+  end
+
+  def test_error_response_with_missing_message_prints_fallback
+    stub_net_http_method(:get_response) do |_uri|
+      FakeErrorResponse.new({ "code" => 500 }.to_json)
+    end
+
+    original_stdout = $stdout
+    output = StringIO.new
+    $stdout = output
+
+    result = @jotform.getUser
+
+    assert_nil(result)
+    assert_match(/Unknown API error/, output.string)
+  ensure
+    $stdout = original_stdout
+  end
+
+  def test_unauthorized_response_returns_nil_and_prints_message
+    stub_net_http_method(:get_response) do |_uri|
+      FakeUnauthorizedResponse.new({ "message" => "Unauthorized" }.to_json)
+    end
+
+    original_stdout = $stdout
+    output = StringIO.new
+    $stdout = output
+
+    result = @jotform.getUser
+
+    assert_nil(result)
+    assert_match(/Unauthorized/, output.string)
+  ensure
+    $stdout = original_stdout
+  end
+
+  def test_success_response_with_malformed_json_returns_nil
+    stub_net_http_method(:get_response) do |_uri|
+      FakeSuccessResponse.new("not-json")
+    end
+
+    result = @jotform.getUser
+
+    assert_nil(result)
+  end
+
+  def test_error_response_with_malformed_json_returns_nil_and_prints_unexpected_format
+    stub_net_http_method(:get_response) do |_uri|
+      FakeErrorResponse.new("not-json")
+    end
+
+    original_stdout = $stdout
+    output = StringIO.new
+    $stdout = output
+
+    result = @jotform.getUser
+
+    assert_nil(result)
+    assert_match(/Unexpected response format/, output.string)
   ensure
     $stdout = original_stdout
   end

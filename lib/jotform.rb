@@ -39,10 +39,18 @@ class Jotform
       response = http.request(request)
     end
 
+    parsed_body = _parse_response_body(response.body)
+
     if response.kind_of? Net::HTTPSuccess
-      return JSON.parse(response.body)["content"]
+      return parsed_body["content"] if parsed_body.is_a?(Hash)
+      return nil
     else
-      puts JSON.parse(response.body)["message"]
+      error_message = if parsed_body.is_a?(Hash)
+                        parsed_body["message"]
+                      else
+                        "Unexpected response format"
+                      end
+      puts(error_message || "Unknown API error")
       return nil
     end
   end
@@ -347,6 +355,12 @@ class Jotform
 
   def deleteReport(reportID)
     return _executeDeleteRequest("report/" + reportID)
+  end
+
+  def _parse_response_body(body)
+    JSON.parse(body)
+  rescue JSON::ParserError
+    nil
   end
 end
 
