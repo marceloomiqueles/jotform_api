@@ -69,6 +69,22 @@ As of **March 8, 2026**, this client is aligned with the public endpoint groups 
 
 Note: API docs may change over time. When Jotform adds new endpoints, this client may require updates to stay in sync.
 
+### Testing
+
+Run unit tests:
+
+```bash
+rake test
+```
+
+Run optional integration tests (live API):
+
+```bash
+JOTFORM_API_KEY=your_api_key ruby -Ilib:test test/test_jotform_integration.rb
+```
+
+`JOTFORM_BASE_URL` can be set for region-specific API hosts. Default is `https://api.jotform.com`.
+
 ### License
 
 This project is licensed under the Apache License 2.0. See `LICENSE.txt` for details.
