@@ -3,7 +3,8 @@ require 'tmpdir'
 
 class PackagingTest < Test::Unit::TestCase
   def test_gem_build_succeeds_and_produces_expected_artifact
-    expected_gem_name = 'jotform_api-1.1.0.gem'
+    spec = Gem::Specification.load('jotform_api.gemspec')
+    expected_gem_name = "jotform_api-#{spec.version}.gem"
 
     Dir.mktmpdir('jotform-gem-build') do |dir|
       output = `gem build jotform_api.gemspec --output #{File.join(dir, expected_gem_name)} 2>&1`
