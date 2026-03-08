@@ -115,6 +115,105 @@ class JotformTest < Test::Unit::TestCase
     assert_equal({ "submissionID" => "sub_1" }, result)
   end
 
+  def test_post_endpoint_wrappers_call_expected_paths
+    cases = [
+      [:updateSettings, [{ "language" => "en" }], "user/settings"],
+      [:registerUser, [{ "username" => "john", "password" => "secret" }], "user/register"],
+      [:loginUser, [{ "username" => "john", "password" => "secret", "appName" => "app", "access" => "readOnly" }], "user/login"],
+      [:cloneForm, ["123"], "form/123/clone"],
+      [:createReport, ["123", { "title" => "My Report", "list_type" => "grid" }], "form/123/reports"],
+      [:createFolder, [{ "name" => "Ops", "color" => "#FFFFFF" }], "folder"],
+      [:createFormWebhook, ["123", "https://callback.test/hook"], "form/123/webhooks"]
+    ]
+
+    cases.each do |method_name, args, path|
+      captured_uri = nil
+      captured_params = nil
+
+      stub_net_http_method(:post_form) do |uri, params|
+        captured_uri = uri
+        captured_params = params
+        FakeSuccessResponse.new({ "content" => { "endpoint" => path } }.to_json)
+      end
+
+      result = @jotform.send(method_name, *args)
+
+      assert_equal("http://example.com/v9/#{path}?apiKey=test-api-key", captured_uri.to_s)
+      assert_not_nil(captured_params) unless method_name == :cloneForm
+      assert_equal({ "endpoint" => path }, result)
+
+      restore_net_http_method(:post_form)
+    end
+  end
+
+  def test_submission_and_form_payload_transformations
+    captured_uri = nil
+    captured_params = nil
+
+    stub_net_http_method(:post_form) do |uri, params|
+      captured_uri = uri
+      captured_params = params
+      FakeSuccessResponse.new({ "content" => { "ok" => true } }.to_json)
+    end
+
+    @jotform.createFormSubmission("100", { "1" => "A", "2_first" => "John", "3_last" => "Doe" })
+    assert_equal("http://example.com/v9/form/100/submissions?apiKey=test-api-key", captured_uri.to_s)
+    assert_equal(
+      {
+        "submission[1]" => "A",
+        "submission[2][first]" => "John",
+        "submission[3][last]" => "Doe"
+      },
+      captured_params
+    )
+
+    @jotform.editSubmission("sub_1", { "2_first" => "Jane", "created_at" => "2025-01-01" })
+    assert_equal("http://example.com/v9/submission/sub_1?apiKey=test-api-key", captured_uri.to_s)
+    assert_equal(
+      {
+        "submission[2][first]" => "Jane",
+        "submission[created_at]" => "2025-01-01"
+      },
+      captured_params
+    )
+
+    @jotform.createFormQuestion("100", { "type" => "control_head", "text" => "Header" })
+    assert_equal("http://example.com/v9/form/100/questions?apiKey=test-api-key", captured_uri.to_s)
+    assert_equal({ "question[type]" => "control_head", "question[text]" => "Header" }, captured_params)
+
+    @jotform.editFormQuestion("100", "7", { "text" => "Updated" })
+    assert_equal("http://example.com/v9/form/100/question/7?apiKey=test-api-key", captured_uri.to_s)
+    assert_equal({ "question[text]" => "Updated" }, captured_params)
+
+    @jotform.setFormProperties("100", { "thankurl" => "https://example.com/thanks", "formWidth" => "650" })
+    assert_equal("http://example.com/v9/form/100/properties?apiKey=test-api-key", captured_uri.to_s)
+    assert_equal(
+      {
+        "properties[thankurl]" => "https://example.com/thanks",
+        "properties[formWidth]" => "650"
+      },
+      captured_params
+    )
+
+    form_payload = {
+      "questions" => { "0" => { "type" => "control_head", "text" => "Form Title" } },
+      "properties" => { "title" => "New Form" },
+      "emails" => { "0" => { "type" => "notification", "to" => "noreply@jotform.com" } }
+    }
+    @jotform.createForm(form_payload)
+    assert_equal("http://example.com/v9/user/forms?apiKey=test-api-key", captured_uri.to_s)
+    assert_equal(
+      {
+        "questions[0][type]" => "control_head",
+        "questions[0][text]" => "Form Title",
+        "properties[title]" => "New Form",
+        "emails[0][type]" => "notification",
+        "emails[0][to]" => "noreply@jotform.com"
+      },
+      captured_params
+    )
+  end
+
   def test_create_label_posts_payload_and_returns_content
     captured_uri = nil
     captured_params = nil
@@ -174,6 +273,30 @@ class JotformTest < Test::Unit::TestCase
     assert_equal({ "resources" => resources }.to_json, captured[:request].body)
     assert_equal({ "ok" => true }, remove_result)
 
+    @jotform.updateFolder("folder_1", { "name" => "My Folder" })
+    assert_equal("/v9/folder/folder_1?apiKey=test-api-key", captured[:request].path)
+    assert_equal({ "name" => "My Folder" }.to_json, captured[:request].body)
+
+    @jotform.addFormsToFolder("folder_1", ["f1", "f2"])
+    assert_equal("/v9/folder/folder_1?apiKey=test-api-key", captured[:request].path)
+    assert_equal({ "forms" => ["f1", "f2"] }.to_json, captured[:request].body)
+
+    @jotform.addFormToFolder("folder_1", "f3")
+    assert_equal("/v9/folder/folder_1?apiKey=test-api-key", captured[:request].path)
+    assert_equal({ "forms" => ["f3"] }.to_json, captured[:request].body)
+
+    @jotform.createForms([{ "properties" => { "title" => "Bulk" } }])
+    assert_equal("/v9/user/forms?apiKey=test-api-key", captured[:request].path)
+    assert_equal([{ "properties" => { "title" => "Bulk" } }].to_json, captured[:request].body)
+
+    @jotform.createFormQuestions("100", { "questions" => {} })
+    assert_equal("/v9/form/100/questions?apiKey=test-api-key", captured[:request].path)
+    assert_equal({ "questions" => {} }.to_json, captured[:request].body)
+
+    @jotform.setMultipleFormProperties("100", { "properties" => { "labelWidth" => "150" } })
+    assert_equal("/v9/form/100/properties?apiKey=test-api-key", captured[:request].path)
+    assert_equal({ "properties" => { "labelWidth" => "150" } }.to_json, captured[:request].body)
+
     raw_payload = '{"name":"Raw Label"}'
     raw_result = @jotform.updateLabel("label_1", raw_payload)
     assert_equal("/v9/label/label_1?apiKey=test-api-key", captured[:request].path)
@@ -185,18 +308,45 @@ class JotformTest < Test::Unit::TestCase
     assert_kind_of(Net::HTTP::Delete, captured[:request])
     assert_equal("/v9/label/label_1?apiKey=test-api-key", captured[:request].path)
     assert_equal({ "ok" => true }, delete_result)
+
+    @jotform.deleteFolder("folder_1")
+    assert_kind_of(Net::HTTP::Delete, captured[:request])
+    assert_equal("/v9/folder/folder_1?apiKey=test-api-key", captured[:request].path)
+
+    @jotform.deleteFormWebhook("100", "wh_1")
+    assert_kind_of(Net::HTTP::Delete, captured[:request])
+    assert_equal("/v9/form/100/webhooks/wh_1?apiKey=test-api-key", captured[:request].path)
+
+    @jotform.deleteSubmission("sub_1")
+    assert_kind_of(Net::HTTP::Delete, captured[:request])
+    assert_equal("/v9/submission/sub_1?apiKey=test-api-key", captured[:request].path)
+
+    @jotform.deleteFormQuestion("100", "7")
+    assert_kind_of(Net::HTTP::Delete, captured[:request])
+    assert_equal("/v9/form/100/question/7?apiKey=test-api-key", captured[:request].path)
+
+    @jotform.deleteForm("100")
+    assert_kind_of(Net::HTTP::Delete, captured[:request])
+    assert_equal("/v9/form/100?apiKey=test-api-key", captured[:request].path)
+
+    @jotform.deleteReport("rep_1")
+    assert_kind_of(Net::HTTP::Delete, captured[:request])
+    assert_equal("/v9/report/rep_1?apiKey=test-api-key", captured[:request].path)
   end
 
   def test_get_endpoint_wrappers_call_expected_paths
     cases = [
       [:getUsage, [], "user/usage"],
       [:getLabels, [], "user/labels"],
+      [:getInvoices, [], "user/invoices"],
       [:getSubmissions, [], "user/submissions"],
       [:getSubusers, [], "user/subusers"],
       [:getFolders, [], "user/folders"],
       [:getReports, [], "user/reports"],
       [:getSettings, [], "user/settings"],
+      [:getUserSetting, ["language"], "user/settings/language"],
       [:getHistory, [], "user/history"],
+      [:logoutUser, [], "user/logout"],
       [:getSystemPlan, ["FREE"], "system/plan/FREE"],
       [:getForm, ["123"], "form/123"],
       [:getFormQuestions, ["123"], "form/123/questions"],
@@ -206,6 +356,7 @@ class JotformTest < Test::Unit::TestCase
       [:getFormSubmissions, ["123"], "form/123/submissions"],
       [:getFormFiles, ["123"], "form/123/files"],
       [:getFormWebhooks, ["123"], "form/123/webhooks"],
+      [:getFormReports, ["123"], "form/123/reports"],
       [:getReport, ["r1"], "report/r1"],
       [:getFolder, ["fld1"], "folder/fld1"],
       [:getLabel, ["lbl1"], "label/lbl1"],

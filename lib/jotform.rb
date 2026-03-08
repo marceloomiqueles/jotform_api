@@ -95,12 +95,24 @@ class Jotform
     return _executeGetRequest("user/settings")
   end
 
+  def getUserSetting(settingKey)
+    return _executeGetRequest("user/settings/" + settingKey)
+  end
+
+  def updateSettings(settings)
+    return _executePostRequest("user/settings", settings)
+  end
+
   def getHistory
     return _executeGetRequest("user/history")
   end
 
   def getLabels
     return _executeGetRequest("user/labels")
+  end
+
+  def getInvoices
+    return _executeGetRequest("user/invoices")
   end
 
   def getForm(formID)
@@ -135,6 +147,10 @@ class Jotform
     return _executeGetRequest("form/"+formID+"/webhooks")
   end
 
+  def getFormReports(formID)
+    return _executeGetRequest("form/" + formID + "/reports")
+  end
+
   def getSubmission(sid)
     return _executeGetRequest("submission/"+sid)
   end
@@ -167,6 +183,21 @@ class Jotform
     return _executePostRequest("form/" + formID + "/submissions", submission)
   end
 
+  def createFormSubmission(formID, submission)
+    formatted_submission = {}
+    submission.each do |key, value|
+      key_string = key.to_s
+      if key_string.include?("_")
+        qid, field_type = key_string.split("_", 2)
+        formatted_submission["submission[#{qid}][#{field_type}]"] = value
+      else
+        formatted_submission["submission[#{key_string}]"] = value
+      end
+    end
+
+    return _executePostRequest("form/" + formID + "/submissions", formatted_submission)
+  end
+
   def createLabel(labelProperties)
     return _executePostRequest("label", labelProperties)
   end
@@ -185,6 +216,137 @@ class Jotform
 
   def deleteLabel(labelID)
     return _executeDeleteRequest("label/" + labelID)
+  end
+
+  def createFolder(folderProperties)
+    return _executePostRequest("folder", folderProperties)
+  end
+
+  def updateFolder(folderID, folderProperties)
+    return _executePutRequest("folder/" + folderID, folderProperties)
+  end
+
+  def deleteFolder(folderID)
+    return _executeDeleteRequest("folder/" + folderID)
+  end
+
+  def addFormsToFolder(folderID, formIDs)
+    return updateFolder(folderID, { "forms" => formIDs })
+  end
+
+  def addFormToFolder(folderID, formID)
+    return addFormsToFolder(folderID, [formID])
+  end
+
+  def deleteFormWebhook(formID, webhookID)
+    return _executeDeleteRequest("form/" + formID + "/webhooks/" + webhookID)
+  end
+
+  def deleteSubmission(submissionID)
+    return _executeDeleteRequest("submission/" + submissionID)
+  end
+
+  def editSubmission(submissionID, submission)
+    formatted_submission = {}
+    submission.each do |key, value|
+      key_string = key.to_s
+      if key_string.include?("_") && key_string != "created_at"
+        qid, field_type = key_string.split("_", 2)
+        formatted_submission["submission[#{qid}][#{field_type}]"] = value
+      else
+        formatted_submission["submission[#{key_string}]"] = value
+      end
+    end
+
+    return _executePostRequest("submission/" + submissionID, formatted_submission)
+  end
+
+  def cloneForm(formID)
+    return _executePostRequest("form/" + formID + "/clone", nil)
+  end
+
+  def deleteFormQuestion(formID, qid)
+    return _executeDeleteRequest("form/" + formID + "/question/" + qid)
+  end
+
+  def createFormQuestion(formID, question)
+    formatted_question = {}
+    question.each do |key, value|
+      formatted_question["question[#{key}]"] = value
+    end
+
+    return _executePostRequest("form/" + formID + "/questions", formatted_question)
+  end
+
+  def createFormQuestions(formID, questions)
+    return _executePutRequest("form/" + formID + "/questions", questions)
+  end
+
+  def editFormQuestion(formID, qid, questionProperties)
+    formatted_question = {}
+    questionProperties.each do |key, value|
+      formatted_question["question[#{key}]"] = value
+    end
+
+    return _executePostRequest("form/" + formID + "/question/" + qid, formatted_question)
+  end
+
+  def setFormProperties(formID, formProperties)
+    formatted_properties = {}
+    formProperties.each do |key, value|
+      formatted_properties["properties[#{key}]"] = value
+    end
+
+    return _executePostRequest("form/" + formID + "/properties", formatted_properties)
+  end
+
+  def setMultipleFormProperties(formID, formProperties)
+    return _executePutRequest("form/" + formID + "/properties", formProperties)
+  end
+
+  def createForm(form)
+    formatted_form = {}
+    form.each do |section, values|
+      values.each do |key, value|
+        if section.to_s == "properties"
+          formatted_form["#{section}[#{key}]"] = value
+        else
+          value.each do |sub_key, sub_value|
+            formatted_form["#{section}[#{key}][#{sub_key}]"] = sub_value
+          end
+        end
+      end
+    end
+
+    return _executePostRequest("user/forms", formatted_form)
+  end
+
+  def createForms(forms)
+    return _executePutRequest("user/forms", forms)
+  end
+
+  def deleteForm(formID)
+    return _executeDeleteRequest("form/" + formID)
+  end
+
+  def registerUser(userDetails)
+    return _executePostRequest("user/register", userDetails)
+  end
+
+  def loginUser(credentials)
+    return _executePostRequest("user/login", credentials)
+  end
+
+  def logoutUser
+    return _executeGetRequest("user/logout")
+  end
+
+  def createReport(formID, report)
+    return _executePostRequest("form/" + formID + "/reports", report)
+  end
+
+  def deleteReport(reportID)
+    return _executeDeleteRequest("report/" + reportID)
   end
 end
 
